@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { getAllSamples, putSample, deleteSample, bulkDeleteSamples } from "@/lib/db";
 import { importZip } from "@/lib/zipImport";
-import { Pencil, Trash2, Eye, CheckSquare, X, Upload } from "lucide-react";
+import { Pencil, Trash2, Eye, CheckSquare, X, Upload, Search, Filter } from "lucide-react";
 
 const STROKE_STYLES = ["circle", "scribble", "arrow", "check", "other"];
 
@@ -61,6 +61,15 @@ export default function LibraryPage() {
   // Preview dialog
   const [previewSample, setPreviewSample] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+
+  // Filter & search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStyle, setFilterStyle] = useState("all");
+  const [filterContributor, setFilterContributor] = useState("all");
+  const [filterTime, setFilterTime] = useState("all");
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Edit state
   const [editingId, setEditingId] = useState(null);
@@ -101,6 +110,85 @@ export default function LibraryPage() {
     };
   }, [loadSamples]);
 
+  // Derived filter options
+  const uniqueContributors = useMemo(
+    () => [...new Set(samples.map((s) => s.contributor_id).filter(Boolean))].sort(),
+    [samples]
+  );
+  const uniqueStyles = useMemo(
+    () => [...new Set(samples.map((s) => s.stroke_style).filter(Boolean))].sort(),
+    [samples]
+  );
+
+  // Filtered samples
+  const filteredSamples = useMemo(() => {
+    let result = samples;
+
+    // Search by note or sample_id
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.sample_id.toLowerCase().includes(q) ||
+          (s.note && s.note.toLowerCase().includes(q))
+      );
+    }
+
+    // Filter by style
+    if (filterStyle !== "all") {
+      result = result.filter((s) => s.stroke_style === filterStyle);
+    }
+
+    // Filter by contributor
+    if (filterContributor !== "all") {
+      result = result.filter((s) => s.contributor_id === filterContributor);
+    }
+
+    // Filter by time
+    if (filterTime !== "all") {
+      if (filterTime === "custom") {
+        if (customDateFrom) {
+          const from = new Date(customDateFrom);
+          result = result.filter((s) => new Date(s.created_at) >= from);
+        }
+        if (customDateTo) {
+          const to = new Date(customDateTo + "T23:59:59.999");
+          result = result.filter((s) => new Date(s.created_at) <= to);
+        }
+      } else {
+        const now = new Date();
+        let cutoff;
+        if (filterTime === "today") {
+          cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (filterTime === "week") {
+          cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (filterTime === "month") {
+          cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        }
+        if (cutoff) {
+          result = result.filter((s) => new Date(s.created_at) >= cutoff);
+        }
+      }
+    }
+
+    return result;
+  }, [samples, searchQuery, filterStyle, filterContributor, filterTime, customDateFrom, customDateTo]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    filterStyle !== "all" ||
+    filterContributor !== "all" ||
+    filterTime !== "all";
+
+  function clearFilters() {
+    setSearchQuery("");
+    setFilterStyle("all");
+    setFilterContributor("all");
+    setFilterTime("all");
+    setCustomDateFrom("");
+    setCustomDateTo("");
+  }
+
   function toggleSelect(id) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -111,10 +199,10 @@ export default function LibraryPage() {
   }
 
   function toggleSelectAll() {
-    if (selected.size === samples.length) {
+    if (selected.size === filteredSamples.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(samples.map((s) => s.sample_id)));
+      setSelected(new Set(filteredSamples.map((s) => s.sample_id)));
     }
   }
 
@@ -222,7 +310,10 @@ export default function LibraryPage() {
         <h1 className="text-lg font-semibold">
           Library{" "}
           <span className="text-muted-foreground font-normal text-sm">
-            ({samples.length} sample{samples.length !== 1 ? "s" : ""})
+            ({hasActiveFilters
+              ? `${filteredSamples.length} of ${samples.length}`
+              : samples.length}{" "}
+            sample{(hasActiveFilters ? filteredSamples.length : samples.length) !== 1 ? "s" : ""})
           </span>
         </h1>
 
@@ -253,7 +344,7 @@ export default function LibraryPage() {
                   className="h-8 text-xs"
                   onClick={toggleSelectAll}
                 >
-                  {selected.size === samples.length ? "Deselect All" : "Select All"}
+                  {selected.size === filteredSamples.length ? "Deselect All" : "Select All"}
                 </Button>
                 <AlertDialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
                   <AlertDialogTrigger asChild>
@@ -310,6 +401,120 @@ export default function LibraryPage() {
         </div>
       </div>
 
+      {/* Search & Filters */}
+      {samples.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search by note or sample ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 text-xs pl-8"
+              />
+            </div>
+            <Button
+              variant={showFilters ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="size-3.5 mr-1" />
+              Filters
+              {hasActiveFilters && !showFilters && (
+                <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                  on
+                </Badge>
+              )}
+            </Button>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={clearFilters}
+              >
+                <X className="size-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {showFilters && (
+            <div className="flex flex-wrap items-center gap-2 p-2 border rounded-md bg-muted/30">
+              <Select value={filterStyle} onValueChange={setFilterStyle}>
+                <SelectTrigger className="h-8 text-xs w-[130px]">
+                  <SelectValue placeholder="Style" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All styles</SelectItem>
+                  {uniqueStyles.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterContributor} onValueChange={setFilterContributor}>
+                <SelectTrigger className="h-8 text-xs w-[150px]">
+                  <SelectValue placeholder="Contributor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All contributors</SelectItem>
+                  {uniqueContributors.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filterTime}
+                onValueChange={(v) => {
+                  setFilterTime(v);
+                  if (v !== "custom") {
+                    setCustomDateFrom("");
+                    setCustomDateTo("");
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-[130px]">
+                  <SelectValue placeholder="Time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 days</SelectItem>
+                  <SelectItem value="month">Last 30 days</SelectItem>
+                  <SelectItem value="custom">Custom range</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {filterTime === "custom" && (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="date"
+                    value={customDateFrom}
+                    onChange={(e) => setCustomDateFrom(e.target.value)}
+                    className="h-8 text-xs w-[140px]"
+                  />
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={customDateTo}
+                    onChange={(e) => setCustomDateTo(e.target.value)}
+                    className="h-8 text-xs w-[140px]"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {importing && (
         <div className="space-y-1">
           <Progress value={importProgress.pct} />
@@ -323,9 +528,16 @@ export default function LibraryPage() {
         <p className="py-12 text-center text-muted-foreground">
           No samples yet. Go to Capture to create your first one.
         </p>
+      ) : filteredSamples.length === 0 ? (
+        <p className="py-12 text-center text-muted-foreground">
+          No samples match your filters.{" "}
+          <button onClick={clearFilters} className="underline hover:text-foreground">
+            Clear filters
+          </button>
+        </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {samples.map((sample) => (
+          {filteredSamples.map((sample) => (
             <Card
               key={sample.sample_id}
               className={`overflow-hidden py-0 gap-0 transition-shadow ${
@@ -483,21 +695,23 @@ export default function LibraryPage() {
 
       {/* Preview dialog */}
       <Dialog open={!!previewSample} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="font-mono text-sm">
               {previewSample?.sample_id}
             </DialogTitle>
           </DialogHeader>
           {previewUrl && (
-            <img
-              src={previewUrl}
-              alt="Full preview"
-              className="w-full rounded-md"
-            />
+            <div className="min-h-0 flex-1 overflow-auto">
+              <img
+                src={previewUrl}
+                alt="Full preview"
+                className="w-full rounded-md"
+              />
+            </div>
           )}
           {previewSample && (
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground shrink-0">
               <span>Style: {previewSample.stroke_style}</span>
               <span>
                 {previewSample.width} x {previewSample.height}
