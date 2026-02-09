@@ -126,13 +126,13 @@ export default function MergePage() {
 
       {/* Validation results table */}
       {zipInfos.length > 0 && (
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
                 <th className="p-2 text-left">File</th>
                 <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">Contributor</th>
+                <th className="p-2 text-left hidden sm:table-cell">Contributor</th>
                 <th className="p-2 text-left">Samples</th>
               </tr>
             </thead>
@@ -158,8 +158,8 @@ export default function MergePage() {
                       </Badge>
                     )}
                   </td>
-                  <td className="p-2 text-xs">
-                    {info.exportMeta?.contributor_id || "—"}
+                  <td className="p-2 text-xs hidden sm:table-cell">
+                    {info.exportMeta?.contributor_id || "\u2014"}
                   </td>
                   <td className="p-2 text-xs">{info.sampleCount}</td>
                 </tr>
@@ -193,12 +193,12 @@ export default function MergePage() {
             </label>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div>
             <Button onClick={handleMerge} disabled={merging}>
-              <Merge className="size-4 mr-2" />
+              <Merge className="size-4 mr-2 shrink-0" />
               {merging
                 ? "Merging..."
-                : `Merge & Download (${totalSamples} samples from ${validZips.length} ZIPs)`}
+                : `Merge & Download (${totalSamples} samples)`}
             </Button>
           </div>
 

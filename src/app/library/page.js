@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -36,8 +37,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getAllSamples, putSample, deleteSample } from "@/lib/db";
-import { Pencil, Trash2, Eye } from "lucide-react";
+import { getAllSamples, putSample, deleteSample, bulkDeleteSamples } from "@/lib/db";
+import { importZip } from "@/lib/zipImport";
+import { Pencil, Trash2, Eye, CheckSquare, X, Upload } from "lucide-react";
 
 const STROKE_STYLES = ["circle", "scribble", "arrow", "check", "other"];
 
@@ -45,6 +47,16 @@ export default function LibraryPage() {
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [thumbUrls, setThumbUrls] = useState({});
+
+  // Import state
+  const importInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ pct: 0, msg: "" });
+
+  // Multi-select state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
 
   // Preview dialog
   const [previewSample, setPreviewSample] = useState(null);
@@ -69,7 +81,6 @@ export default function LibraryPage() {
         }
       }
       setThumbUrls((prev) => {
-        // Revoke old URLs
         Object.values(prev).forEach((u) => URL.revokeObjectURL(u));
         return urls;
       });
@@ -83,13 +94,44 @@ export default function LibraryPage() {
   useEffect(() => {
     loadSamples();
     return () => {
-      // Cleanup object URLs on unmount
       setThumbUrls((prev) => {
         Object.values(prev).forEach((u) => URL.revokeObjectURL(u));
         return {};
       });
     };
   }, [loadSamples]);
+
+  function toggleSelect(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === samples.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(samples.map((s) => s.sample_id)));
+    }
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    await bulkDeleteSamples([...selected]);
+    toast.success(`Deleted ${selected.size} sample(s).`);
+    setSelected(new Set());
+    setSelectMode(false);
+    setShowBulkDelete(false);
+    await loadSamples();
+  }
 
   function handlePreview(sample) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -130,6 +172,42 @@ export default function LibraryPage() {
     await loadSamples();
   }
 
+  async function handleImportZip(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    setImporting(true);
+    setImportProgress({ pct: 0, msg: "Starting import..." });
+
+    try {
+      const stats = await importZip(file, ({ current, total, message }) => {
+        setImportProgress({
+          pct: Math.round((current / total) * 100),
+          msg: message,
+        });
+      });
+
+      const parts = [`Imported ${stats.imported} sample(s).`];
+      if (stats.skipped > 0) parts.push(`${stats.skipped} already existed.`);
+      if (stats.errors.length > 0) parts.push(`${stats.errors.length} error(s).`);
+
+      if (stats.imported > 0) {
+        toast.success(parts.join(" "));
+      } else {
+        toast.info(parts.join(" "));
+      }
+
+      await loadSamples();
+    } catch (err) {
+      toast.error("Import failed: " + err.message);
+    } finally {
+      setImporting(false);
+      setImportProgress({ pct: 0, msg: "" });
+    }
+  }
+
   if (loading) {
     return (
       <div className="py-12 text-center text-muted-foreground">
@@ -140,14 +218,106 @@ export default function LibraryPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-lg font-semibold">
           Library{" "}
           <span className="text-muted-foreground font-normal text-sm">
             ({samples.length} sample{samples.length !== 1 ? "s" : ""})
           </span>
         </h1>
+
+        <div className="flex items-center gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleImportZip}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importing}
+          >
+            <Upload className="size-3.5 mr-1" />
+            {importing ? "Importing..." : "Import ZIP"}
+          </Button>
+          {samples.length > 0 && (
+            selectMode ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={toggleSelectAll}
+                >
+                  {selected.size === samples.length ? "Deselect All" : "Select All"}
+                </Button>
+                <AlertDialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-8 text-xs"
+                      disabled={selected.size === 0}
+                    >
+                      <Trash2 className="size-3.5 mr-1" />
+                      Delete ({selected.size})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Delete {selected.size} sample{selected.size !== 1 ? "s" : ""}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently remove the selected samples from your
+                        local database. This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBulkDelete}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={exitSelectMode}
+                >
+                  <X className="size-3.5 mr-1" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setSelectMode(true)}
+              >
+                <CheckSquare className="size-3.5 mr-1" />
+                Select
+              </Button>
+            )
+          )}
+        </div>
       </div>
+
+      {importing && (
+        <div className="space-y-1">
+          <Progress value={importProgress.pct} />
+          <p className="text-xs text-muted-foreground text-center">
+            {importProgress.msg}
+          </p>
+        </div>
+      )}
 
       {samples.length === 0 ? (
         <p className="py-12 text-center text-muted-foreground">
@@ -156,22 +326,47 @@ export default function LibraryPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {samples.map((sample) => (
-            <Card key={sample.sample_id} className="overflow-hidden">
-              <CardHeader className="p-0">
+            <Card
+              key={sample.sample_id}
+              className={`overflow-hidden py-0 gap-0 transition-shadow ${
+                selectMode && selected.has(sample.sample_id)
+                  ? "ring-2 ring-primary"
+                  : ""
+              }`}
+            >
+              <CardHeader className="p-0 relative">
+                {selectMode && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <Checkbox
+                      checked={selected.has(sample.sample_id)}
+                      onCheckedChange={() => toggleSelect(sample.sample_id)}
+                      className="bg-background"
+                    />
+                  </div>
+                )}
                 {thumbUrls[sample.sample_id] ? (
                   <img
                     src={thumbUrls[sample.sample_id]}
                     alt="marked preview"
                     className="w-full h-48 object-cover cursor-pointer"
-                    onClick={() => handlePreview(sample)}
+                    onClick={() =>
+                      selectMode
+                        ? toggleSelect(sample.sample_id)
+                        : handlePreview(sample)
+                    }
                   />
                 ) : (
-                  <div className="w-full h-48 bg-muted flex items-center justify-center text-sm text-muted-foreground">
+                  <div
+                    className="w-full h-48 bg-muted flex items-center justify-center text-sm text-muted-foreground cursor-pointer"
+                    onClick={() =>
+                      selectMode && toggleSelect(sample.sample_id)
+                    }
+                  >
                     No preview
                   </div>
                 )}
               </CardHeader>
-              <CardContent className="p-3 space-y-2">
+              <CardContent className="p-3 pt-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{sample.stroke_style}</Badge>
                   <span className="text-xs text-muted-foreground font-mono truncate">
@@ -230,7 +425,7 @@ export default function LibraryPage() {
                   </>
                 )}
               </CardContent>
-              {editingId !== sample.sample_id && (
+              {!selectMode && editingId !== sample.sample_id && (
                 <CardFooter className="p-3 pt-0 gap-2">
                   <Button
                     variant="ghost"

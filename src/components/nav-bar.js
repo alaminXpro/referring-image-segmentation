@@ -43,30 +43,44 @@ export default function NavBar() {
 
   return (
     <header className="border-b bg-background">
-      <div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4">
-        <Link href="/" className="font-semibold text-sm whitespace-nowrap">
+      <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-4">
+        <Link href="/" className="font-semibold text-sm whitespace-nowrap mr-2">
           RIS Builder
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-0.5 overflow-x-auto">
           {links.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                "flex items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors whitespace-nowrap",
                 pathname === href
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Icon className="size-4" />
+              <Icon className="size-4 shrink-0" />
               <span className="hidden sm:inline">{label}</span>
             </Link>
           ))}
         </nav>
+      </div>
+    </header>
+  );
+}
 
-        <div className="ml-auto text-xs text-muted-foreground">
+export function FooterBar() {
+  const contributor = useSyncExternalStore(
+    subscribeContributor,
+    getContributor,
+    () => ""
+  );
+
+  return (
+    <footer className="border-t bg-background mt-auto">
+      <div className="mx-auto flex h-10 max-w-5xl items-center justify-center px-4">
+        <div className="text-xs text-muted-foreground truncate">
           {contributor ? (
             <span>
               Contributor: <strong>{contributor}</strong>
@@ -78,6 +92,6 @@ export default function NavBar() {
           )}
         </div>
       </div>
-    </header>
+    </footer>
   );
 }

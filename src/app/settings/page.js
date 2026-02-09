@@ -39,7 +39,7 @@ export default function SettingsPage() {
   if (!loaded) return null;
 
   return (
-    <div className="mx-auto max-w-lg p-6">
+    <div className="mx-auto max-w-lg">
       <Card>
         <CardHeader>
           <CardTitle>Settings</CardTitle>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { saveAs } from "file-saver";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,8 @@ export default function ExportPage() {
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [exportAll, setExportAll] = useState(true);
+  const thumbUrlsRef = useRef({});
+  const [thumbUrls, setThumbUrls] = useState({});
 
   const loadSamples = useCallback(async () => {
     setLoading(true);
@@ -24,6 +26,18 @@ export default function ExportPage() {
       const all = await getAllSamples();
       setSamples(all);
       setSelected(new Set(all.map((s) => s.sample_id)));
+
+      // Create thumbnail URLs
+      const oldUrls = thumbUrlsRef.current;
+      Object.values(oldUrls).forEach((u) => URL.revokeObjectURL(u));
+      const urls = {};
+      for (const s of all) {
+        if (s.blobs?.marked) {
+          urls[s.sample_id] = URL.createObjectURL(s.blobs.marked);
+        }
+      }
+      thumbUrlsRef.current = urls;
+      setThumbUrls(urls);
     } catch (err) {
       toast.error("Failed to load samples: " + err.message);
     } finally {
@@ -33,6 +47,9 @@ export default function ExportPage() {
 
   useEffect(() => {
     loadSamples();
+    return () => {
+      Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+    };
   }, [loadSamples]);
 
   function toggleSample(id) {
@@ -123,15 +140,16 @@ export default function ExportPage() {
           </div>
 
           {!exportAll && (
-            <div className="border rounded-md max-h-72 overflow-y-auto">
+            <div className="border rounded-md max-h-96 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted/50 sticky top-0">
                   <tr>
                     <th className="p-2 w-10"></th>
+                    <th className="p-2 w-16 text-left">Preview</th>
                     <th className="p-2 text-left">Sample ID</th>
-                    <th className="p-2 text-left">Style</th>
-                    <th className="p-2 text-left">Date</th>
-                    <th className="p-2 text-left">Note</th>
+                    <th className="p-2 text-left hidden sm:table-cell">Style</th>
+                    <th className="p-2 text-left hidden sm:table-cell">Date</th>
+                    <th className="p-2 text-left hidden md:table-cell">Note</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -143,15 +161,26 @@ export default function ExportPage() {
                           onCheckedChange={() => toggleSample(s.sample_id)}
                         />
                       </td>
+                      <td className="p-1.5">
+                        {thumbUrls[s.sample_id] ? (
+                          <img
+                            src={thumbUrls[s.sample_id]}
+                            alt="thumbnail"
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-muted rounded" />
+                        )}
+                      </td>
                       <td className="p-2 font-mono text-xs">
                         {s.sample_id.slice(0, 8)}...
                       </td>
-                      <td className="p-2">{s.stroke_style}</td>
-                      <td className="p-2 text-xs text-muted-foreground">
+                      <td className="p-2 hidden sm:table-cell">{s.stroke_style}</td>
+                      <td className="p-2 text-xs text-muted-foreground hidden sm:table-cell">
                         {new Date(s.created_at).toLocaleDateString()}
                       </td>
-                      <td className="p-2 text-xs text-muted-foreground truncate max-w-[200px]">
-                        {s.note || "—"}
+                      <td className="p-2 text-xs text-muted-foreground truncate max-w-[200px] hidden md:table-cell">
+                        {s.note || "\u2014"}
                       </td>
                     </tr>
                   ))}

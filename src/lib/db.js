@@ -45,6 +45,13 @@ export async function bulkGetSamples(sampleIds) {
   return results.filter(Boolean);
 }
 
+export async function bulkDeleteSamples(sampleIds) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_SAMPLES, "readwrite");
+  await Promise.all(sampleIds.map((id) => tx.store.delete(id)));
+  await tx.done;
+}
+
 export async function countSamples() {
   const db = await openDB();
   return db.count(STORE_SAMPLES);

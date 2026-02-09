@@ -72,6 +72,7 @@ export function setupDrawing(overlayCanvas, options = {}) {
 
   function onPointerDown(e) {
     if (e.button !== 0) return;
+    e.preventDefault();
     drawing = true;
     saveState();
     const pos = getPos(e);
@@ -86,19 +87,29 @@ export function setupDrawing(overlayCanvas, options = {}) {
 
   function onPointerMove(e) {
     if (!drawing) return;
+    e.preventDefault();
     const pos = getPos(e);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
   }
 
-  function onPointerUp() {
+  function onPointerUp(e) {
     if (!drawing) return;
+    e.preventDefault();
     drawing = false;
   }
 
+  // Prevent touch scrolling/zooming on canvas
+  function onTouchPrevent(e) {
+    e.preventDefault();
+  }
+
+  overlayCanvas.style.touchAction = "none";
   overlayCanvas.addEventListener("pointerdown", onPointerDown);
   overlayCanvas.addEventListener("pointermove", onPointerMove);
   overlayCanvas.addEventListener("pointerup", onPointerUp);
+  overlayCanvas.addEventListener("touchstart", onTouchPrevent, { passive: false });
+  overlayCanvas.addEventListener("touchmove", onTouchPrevent, { passive: false });
 
   return {
     undo() {
@@ -121,6 +132,8 @@ export function setupDrawing(overlayCanvas, options = {}) {
       overlayCanvas.removeEventListener("pointerdown", onPointerDown);
       overlayCanvas.removeEventListener("pointermove", onPointerMove);
       overlayCanvas.removeEventListener("pointerup", onPointerUp);
+      overlayCanvas.removeEventListener("touchstart", onTouchPrevent);
+      overlayCanvas.removeEventListener("touchmove", onTouchPrevent);
     },
   };
 }

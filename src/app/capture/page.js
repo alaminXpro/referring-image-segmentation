@@ -23,6 +23,7 @@ import {
   exportMarkedJpg,
   hasStrokes,
 } from "@/lib/image";
+import { Upload } from "lucide-react";
 
 const STROKE_STYLES = ["circle", "scribble", "arrow", "check", "other"];
 
@@ -30,12 +31,14 @@ export default function CapturePage() {
   const baseCanvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
   const drawingRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [imageLoaded, setImageLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [strokeStyle, setStrokeStyle] = useState("circle");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const [penColor, setPenColor] = useState("#FF0000");
   const [penThickness, setPenThickness] = useState(4);
@@ -46,7 +49,7 @@ export default function CapturePage() {
     setPenThickness(Number(localStorage.getItem("ris_pen_thickness")) || 4);
   }, []);
 
-  // Initialize or update drawing engine when pen settings change
+  // Update drawing engine when pen settings change
   useEffect(() => {
     if (drawingRef.current) {
       drawingRef.current.setColor(penColor);
@@ -54,10 +57,12 @@ export default function CapturePage() {
     }
   }, [penColor, penThickness]);
 
-  const handleFileChange = useCallback(
-    async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const loadFile = useCallback(
+    async (file) => {
+      if (!file || !file.type.startsWith("image/")) {
+        toast.error("Please drop an image file.");
+        return;
+      }
 
       // Destroy previous drawing engine
       if (drawingRef.current) {
@@ -84,6 +89,28 @@ export default function CapturePage() {
     },
     [penColor, penThickness]
   );
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (file) loadFile(file);
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    setDragging(true);
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    setDragging(false);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) loadFile(file);
+  }
 
   function handleUndo() {
     if (drawingRef.current) drawingRef.current.undo();
@@ -149,22 +176,31 @@ export default function CapturePage() {
   return (
     <div className="space-y-4">
       {/* Top controls */}
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label htmlFor="file-input">Image</Label>
-          <Input
+          <input
+            ref={fileInputRef}
             id="file-input"
             type="file"
             accept="image/*"
             onChange={handleFileChange}
-            className="w-auto"
+            className="hidden"
           />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-4 mr-1.5" />
+            Choose Image
+          </Button>
         </div>
 
         <div className="space-y-1">
-          <Label>Stroke Style</Label>
+          <Label>Style</Label>
           <Select value={strokeStyle} onValueChange={setStrokeStyle}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -177,7 +213,7 @@ export default function CapturePage() {
           </Select>
         </div>
 
-        <div className="space-y-1 flex-1 min-w-[200px]">
+        <div className="space-y-1 flex-1 min-w-[150px]">
           <Label htmlFor="note">Note</Label>
           <Input
             id="note"
@@ -188,10 +224,15 @@ export default function CapturePage() {
         </div>
       </div>
 
-      {/* Canvas area */}
+      {/* Canvas / Drop zone */}
       <div
-        className="relative inline-block border rounded-md bg-muted overflow-hidden"
+        className={`relative border rounded-md bg-muted overflow-hidden transition-colors ${
+          dragging ? "border-primary border-2 bg-primary/5" : ""
+        } ${imageLoaded ? "inline-block" : "block"}`}
         style={{ maxWidth: "100%" }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <canvas
           ref={baseCanvasRef}
@@ -205,18 +246,23 @@ export default function CapturePage() {
             display: imageLoaded ? "block" : "none",
             width: "100%",
             height: "100%",
+            touchAction: "none",
           }}
         />
         {!imageLoaded && (
-          <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-            Upload an image to start drawing
+          <div
+            className="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm gap-2 cursor-pointer"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-8 opacity-40" />
+            <span>Drop an image here or click to upload</span>
           </div>
         )}
       </div>
 
       {/* Drawing toolbar */}
       {imageLoaded && (
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Label htmlFor="pen-color" className="text-sm">
               Color
@@ -241,7 +287,7 @@ export default function CapturePage() {
               max={50}
               value={penThickness}
               onChange={(e) => setPenThickness(Number(e.target.value))}
-              className="w-24"
+              className="w-20"
             />
             <span className="text-xs text-muted-foreground w-6">
               {penThickness}
