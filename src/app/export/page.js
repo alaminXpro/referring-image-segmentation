@@ -48,7 +48,9 @@ export default function ExportPage() {
   useEffect(() => {
     loadSamples();
     return () => {
-      Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+      Object.values(thumbUrlsRef.current).forEach((u) =>
+        URL.revokeObjectURL(u),
+      );
     };
   }, [loadSamples]);
 
@@ -91,7 +93,7 @@ export default function ExportPage() {
       const blob = await buildExportZip(
         toExport,
         contributorId,
-        (current, total) => setProgress(Math.round((current / total) * 100))
+        (current, total) => setProgress(Math.round((current / total) * 100)),
       );
 
       const date = new Date().toISOString().slice(0, 10);
@@ -140,16 +142,16 @@ export default function ExportPage() {
           </div>
 
           {!exportAll && (
-            <div className="border rounded-md max-h-96 overflow-y-auto">
-              <table className="w-full text-sm">
+            <div className="border rounded-md max-h-96 overflow-y-auto overflow-x-auto">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead className="border-b bg-muted/50 sticky top-0">
                   <tr>
                     <th className="p-2 w-10"></th>
                     <th className="p-2 w-16 text-left">Preview</th>
                     <th className="p-2 text-left">Sample ID</th>
-                    <th className="p-2 text-left hidden sm:table-cell">Style</th>
-                    <th className="p-2 text-left hidden sm:table-cell">Date</th>
-                    <th className="p-2 text-left hidden md:table-cell">Note</th>
+                    <th className="p-2 text-left">Style</th>
+                    <th className="p-2 text-left">Date</th>
+                    <th className="p-2 text-left">Note</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,6 +165,7 @@ export default function ExportPage() {
                       </td>
                       <td className="p-1.5">
                         {thumbUrls[s.sample_id] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={thumbUrls[s.sample_id]}
                             alt="thumbnail"
@@ -175,11 +178,11 @@ export default function ExportPage() {
                       <td className="p-2 font-mono text-xs">
                         {s.sample_id.slice(0, 8)}...
                       </td>
-                      <td className="p-2 hidden sm:table-cell">{s.stroke_style}</td>
-                      <td className="p-2 text-xs text-muted-foreground hidden sm:table-cell">
+                      <td className="p-2">{s.stroke_style}</td>
+                      <td className="p-2 text-xs text-muted-foreground">
                         {new Date(s.created_at).toLocaleDateString()}
                       </td>
-                      <td className="p-2 text-xs text-muted-foreground truncate max-w-[200px] hidden md:table-cell">
+                      <td className="p-2 text-xs text-muted-foreground truncate max-w-[200px]">
                         {s.note || "\u2014"}
                       </td>
                     </tr>
@@ -190,7 +193,10 @@ export default function ExportPage() {
           )}
 
           <div className="flex items-center gap-4">
-            <Button onClick={handleExport} disabled={exporting || exportCount === 0}>
+            <Button
+              onClick={handleExport}
+              disabled={exporting || exportCount === 0}
+            >
               <Download className="size-4 mr-2" />
               {exporting
                 ? "Exporting..."

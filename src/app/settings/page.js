@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,31 +12,36 @@ const LS_PEN_THICKNESS = "ris_pen_thickness";
 const LS_PEN_COLOR = "ris_pen_color";
 
 export default function SettingsPage() {
-  const [contributorId, setContributorId] = useState("");
-  const [penThickness, setPenThickness] = useState(4);
-  const [penColor, setPenColor] = useState("#FF0000");
-  const [loaded, setLoaded] = useState(false);
+  const [settings, setSettings] = useState({
+    contributorId: "",
+    penThickness: 4,
+    penColor: "#FF0000",
+  });
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    setContributorId(localStorage.getItem(LS_CONTRIBUTOR) || "");
-    setPenThickness(Number(localStorage.getItem(LS_PEN_THICKNESS)) || 4);
-    setPenColor(localStorage.getItem(LS_PEN_COLOR) || "#FF0000");
-    setLoaded(true);
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSettings({
+        contributorId: localStorage.getItem(LS_CONTRIBUTOR) || "",
+        penThickness: Number(localStorage.getItem(LS_PEN_THICKNESS)) || 4,
+        penColor: localStorage.getItem(LS_PEN_COLOR) || "#FF0000",
+      });
+    }
   }, []);
 
   function handleSave() {
-    if (!contributorId.trim()) {
+    if (!settings.contributorId.trim()) {
       toast.error("Contributor ID cannot be empty.");
       return;
     }
-    localStorage.setItem(LS_CONTRIBUTOR, contributorId.trim());
-    localStorage.setItem(LS_PEN_THICKNESS, String(penThickness));
-    localStorage.setItem(LS_PEN_COLOR, penColor);
+    localStorage.setItem(LS_CONTRIBUTOR, settings.contributorId.trim());
+    localStorage.setItem(LS_PEN_THICKNESS, String(settings.penThickness));
+    localStorage.setItem(LS_PEN_COLOR, settings.penColor);
     window.dispatchEvent(new Event("ris-settings-changed"));
     toast.success("Settings saved.");
   }
-
-  if (!loaded) return null;
 
   return (
     <div className="mx-auto max-w-lg">
@@ -50,10 +55,10 @@ export default function SettingsPage() {
             <Input
               id="contributor"
               placeholder='e.g. "alice"'
-              value={contributorId}
-              onChange={(e) => setContributorId(e.target.value)}
+              value={settings.contributorId}
+              onChange={(e) => setSettings({ ...settings, contributorId: e.target.value })}
             />
-            {!contributorId.trim() && (
+            {!settings.contributorId.trim() && (
               <p className="text-sm text-destructive">
                 Contributor ID is required before you can save samples.
               </p>
@@ -67,8 +72,8 @@ export default function SettingsPage() {
               type="number"
               min={1}
               max={50}
-              value={penThickness}
-              onChange={(e) => setPenThickness(Number(e.target.value))}
+              value={settings.penThickness}
+              onChange={(e) => setSettings({ ...settings, penThickness: Number(e.target.value) })}
             />
           </div>
 
@@ -77,8 +82,8 @@ export default function SettingsPage() {
             <Input
               id="color"
               type="color"
-              value={penColor}
-              onChange={(e) => setPenColor(e.target.value)}
+              value={settings.penColor}
+              onChange={(e) => setSettings({ ...settings, penColor: e.target.value })}
               className="h-10 w-20 cursor-pointer p-1"
             />
           </div>

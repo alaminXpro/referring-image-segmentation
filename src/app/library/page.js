@@ -557,6 +557,7 @@ export default function LibraryPage() {
                   </div>
                 )}
                 {thumbUrls[sample.sample_id] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={thumbUrls[sample.sample_id]}
                     alt="marked preview"
@@ -703,6 +704,7 @@ export default function LibraryPage() {
           </DialogHeader>
           {previewUrl && (
             <div className="min-h-0 flex-1 overflow-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
                 alt="Full preview"
