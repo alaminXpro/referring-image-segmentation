@@ -1,0 +1,70 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import {
+  Camera,
+  Library,
+  Download,
+  Merge,
+  Settings,
+} from "lucide-react";
+
+const links = [
+  { href: "/capture", label: "Capture", icon: Camera },
+  { href: "/library", label: "Library", icon: Library },
+  { href: "/export", label: "Export", icon: Download },
+  { href: "/merge", label: "Merge", icon: Merge },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+export default function NavBar() {
+  const pathname = usePathname();
+  const [contributor, setContributor] = useState("");
+
+  useEffect(() => {
+    setContributor(localStorage.getItem("ris_contributor_id") || "");
+  }, [pathname]);
+
+  return (
+    <header className="border-b bg-background">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4">
+        <Link href="/" className="font-semibold text-sm whitespace-nowrap">
+          RIS Builder
+        </Link>
+
+        <nav className="flex items-center gap-1">
+          {links.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                pathname === href
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Icon className="size-4" />
+              <span className="hidden sm:inline">{label}</span>
+            </Link>
+          ))}
+        </nav>
+
+        <div className="ml-auto text-xs text-muted-foreground">
+          {contributor ? (
+            <span>
+              Contributor: <strong>{contributor}</strong>
+            </span>
+          ) : (
+            <Link href="/settings" className="text-destructive underline">
+              Set contributor ID
+            </Link>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
