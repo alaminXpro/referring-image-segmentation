@@ -32,6 +32,7 @@ export default function SettingsPage() {
     localStorage.setItem(LS_CONTRIBUTOR, contributorId.trim());
     localStorage.setItem(LS_PEN_THICKNESS, String(penThickness));
     localStorage.setItem(LS_PEN_COLOR, penColor);
+    window.dispatchEvent(new Event("ris-settings-changed"));
     toast.success("Settings saved.");
   }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import {
   Camera,
@@ -11,6 +11,19 @@ import {
   Merge,
   Settings,
 } from "lucide-react";
+
+function subscribeContributor(callback) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("ris-settings-changed", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("ris-settings-changed", callback);
+  };
+}
+
+function getContributor() {
+  return localStorage.getItem("ris_contributor_id") || "";
+}
 
 const links = [
   { href: "/capture", label: "Capture", icon: Camera },
@@ -22,11 +35,11 @@ const links = [
 
 export default function NavBar() {
   const pathname = usePathname();
-  const [contributor, setContributor] = useState("");
-
-  useEffect(() => {
-    setContributor(localStorage.getItem("ris_contributor_id") || "");
-  }, [pathname]);
+  const contributor = useSyncExternalStore(
+    subscribeContributor,
+    getContributor,
+    () => ""
+  );
 
   return (
     <header className="border-b bg-background">
