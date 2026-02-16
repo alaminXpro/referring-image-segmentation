@@ -10,6 +10,7 @@ import {
   Download,
   Merge,
   Settings,
+  Sparkles,
 } from "lucide-react";
 
 function subscribeContributor(callback) {
@@ -30,6 +31,7 @@ const links = [
   { href: "/library", label: "Library", icon: Library },
   { href: "/export", label: "Export", icon: Download },
   { href: "/merge", label: "Merge", icon: Merge },
+  { href: "/demo", label: "Demo", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
