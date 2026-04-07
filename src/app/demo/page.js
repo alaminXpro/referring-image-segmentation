@@ -31,6 +31,7 @@ import {
   setupDrawing,
   exportStrokeMaskPng,
   exportMarkedJpg,
+  exportCleanJpg,
   hasStrokes,
 } from "@/lib/image";
 
@@ -192,6 +193,11 @@ export default function DemoPage() {
         // formData.append("stroke_mask", resizedMask, "stroke_mask.png");
         formData.append("stroke_mask", maskBlob, "stroke_mask.png");
       }
+
+      console.log("[DEBUG] Exporting clean original...");
+      const cleanBlob = await exportCleanJpg(baseCanvasRef.current);
+      console.log("[DEBUG] cleanBlob:", cleanBlob?.size, cleanBlob?.type);
+      formData.append("original_image", cleanBlob, "original.jpg");
 
       console.log("[DEBUG] Calling segmentImage...");
       const data = await segmentImage(formData);
