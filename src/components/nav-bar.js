@@ -81,7 +81,7 @@ export function FooterBar() {
 
   return (
     <footer className="border-t bg-background mt-auto">
-      <div className="mx-auto flex h-10 max-w-5xl items-center justify-center px-4">
+      <div className="mx-auto flex min-h-10 max-w-5xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1.5">
         <div className="text-xs text-muted-foreground truncate">
           {contributor ? (
             <span>
@@ -93,6 +93,17 @@ export function FooterBar() {
             </Link>
           )}
         </div>
+        <span className="hidden text-border sm:inline" aria-hidden>
+          ·
+        </span>
+        <a
+          href="https://huggingface.co/spaces/alaminxpro/referring-image-segmentation/tree/main"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Hugging Face Space
+        </a>
       </div>
     </footer>
   );
