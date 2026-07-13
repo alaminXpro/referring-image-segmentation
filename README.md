@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Regional Intent Segmentation (RIS)
 
-## Getting Started
+Turn a rough stroke (circle, scribble, arrow, checkmark) drawn on an image into a precise segmentation mask of the object the user meant.
 
-First, run the development server:
+## How it works
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**Teacher → Student distillation:**
+
+```
+User stroke → SAM 3 / SAM 2.1 (teacher, offline) → ground-truth masks → YOLO26s-seg (student) → fast CPU inference
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Teacher (offline):** SAM generates high-quality masks from stroke-derived prompts (bbox + skeleton points). Used once, during training data prep — too slow for production.
+- **Student (production):** YOLO26s-seg predicts candidate instance masks directly from the marked image.
+- **Instance selection:** the candidate mask with the highest stroke-overlap × confidence score is chosen as the intended object.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Project structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+├── dataset-builder/      # Next.js web app for capturing stroke annotations (client-side, IndexedDB)
+├── RIS_Training_Pipeline.ipynb   # Colab: mask generation → YOLO format → training → ONNX export
+├── api/                  # FastAPI + ONNX Runtime inference service
+└── docs/                 # Production spec, workflow plan
+```
 
-## Learn More
+## Pipeline stages
 
-To learn more about Next.js, take a look at the following resources:
+1. **Capture** — teammates upload images and draw stroke annotations in the dataset builder; export as `RIS_EXPORT.zip`.
+2. **Ground truth generation** — SAM (teacher) converts strokes into prompts and produces `mask_gt.png` for each sample.
+3. **YOLO format conversion** — masks → simplified polygons, 80/20 train/val split.
+4. **Training** — YOLO26s-seg, with `mosaic/mixup/copy_paste` disabled (they break stroke↔object intent), mild geometric augmentation, heavy photometric augmentation.
+5. **Export** — ONNX (CPU-optimized) for production.
+6. **Deploy** — FastAPI + Docker on AWS Lightsail (CPU-only).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+POST /segment
+```
+Input: marked image (+ optional stroke mask). Output:
+```json
+{
+  "status": "ok",
+  "mask_png_base64": "...",
+  "cutout_png_base64": "...",
+  "bbox_xyxy": [x1, y1, x2, y2],
+  "intent_confidence": 0.92,
+  "model_path": "student|fallback",
+  "debug": { "instances": 3, "selected_instance": 1, "overlap_scores": [0.02, 0.68, 0.11] }
+}
+```
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Frontend:** Next.js (canvas-based stroke capture)
+- **Training:** Google Colab Pro, Ultralytics YOLO26s-seg, SAM 3 / SAM 2.1 Hiera-Large
+- **Serving:** FastAPI, ONNX Runtime, Docker, AWS Lightsail (8GB RAM, 2 vCPU, CPU-only)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Status
+
+- ✅ Dataset builder + export format (`ris-v1`)
+- ✅ Training pipeline (mask gen → YOLO conversion → training → ONNX export)
+- ✅ FastAPI inference tested locally
+- 🚧 SAM 3 upgrade for teacher masks
+- 🚧 Full frontend integration
+- 🚧 Production deployment hardening
+
+## License
+
+TBD
